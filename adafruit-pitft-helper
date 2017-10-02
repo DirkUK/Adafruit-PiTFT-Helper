@@ -109,6 +109,69 @@ EOF
 
 }
 
+# currently for '90' rotation only
+function update_xorg() {
+    mkdir -p /etc/X11/xorg.conf.d
+
+    cat > /etc/X11/xorg.conf.d/99-fbdev.conf <<EOF
+Section "Device"
+  Identifier "myfb"
+  Driver "fbdev"
+  Option "fbdev" "/dev/fb1"
+EndSection
+EOF
+
+    if [ "${pitfttype}" == "28r" ]; then
+        cat > /etc/X11/xorg.conf.d/99-calibration.conf <<EOF
+Section "InputClass"
+        Identifier      "calibration"
+        MatchProduct    "stmpe-ts"
+        Option  "Calibration"   "3800 200 200 3800"
+        Option  "SwapAxes"      "1"
+EndSection
+EOF
+    fi
+
+    if [ "${pitfttype}" == "35r" ]; then
+        cat > /etc/X11/xorg.conf.d/99-calibration.conf <<EOF
+Section "InputClass"
+        Identifier      "calibration"
+        MatchProduct    "stmpe-ts"
+        Option  "Calibration"   "3800 120 200 3900"
+        Option  "SwapAxes"      "1"
+EndSection
+EOF
+    fi
+
+    if [ "${pitfttype}" == "28c" ]; then
+        cat > /etc/X11/xorg.conf.d/99-calibration.conf <<EOF
+Section "InputClass"
+         Identifier "captouch"
+         MatchProduct "ft6x06_ts"
+         Option "SwapAxes" "1"
+         Option "InvertY" "1"
+         Option "Calibration" "0 320 0 240"
+EndSection
+EOF
+    fi
+}
+
+function update_x11profile() {
+    fbturbo_path="/usr/share/X11/xorg.conf.d/99-fbturbo.conf"
+    if [ -e $fbturbo_path ]; then
+        echo "Moving ${fbturbo_path} to ${target_homedir}"
+        mv "$fbturbo_path" "$target_homedir"
+    fi
+
+    if grep -xq "export FRAMEBUFFER=/dev/fb1" "${target_homedir}/.profile"; then
+        echo "Already had 'export FRAMEBUFFER=/dev/fb1'"
+    else
+        echo "Adding 'export FRAMEBUFFER=/dev/fb1'"
+        cat >> "${target_homedir}/.profile" <<EOF
+export FRAMEBUFFER=/dev/fb1
+EOF
+    fi
+}
 
 # currently for '90' rotation only
 function update_pointercal() {
@@ -283,6 +346,12 @@ if [ "${pitfttype}" != "28r" ] && [ "${pitfttype}" != "28c" ] && [ "${pitfttype}
     echo
     print_help
 fi
+
+info PITFT "Updating X11 default calibration..."
+update_xorg || bail "Unable to update /etc/X11/xorg.conf.d/99-calibration.conf"
+
+info PITFT "Updating X11 setup tweaks..."
+update_x11profile || bail "Unable to update X11 setup"
 
 info PITFT "Updating TSLib default calibration..."
 update_pointercal || bail "Unable to update /etc/pointercal"
